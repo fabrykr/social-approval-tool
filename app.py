@@ -5,14 +5,14 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
 # --- CONFIGURAZIONE SICURA ---
-# Ora il codice non contiene più i tuoi segreti!
+# Usiamo i NOMI delle etichette, non i valori!
 cloudinary.config( 
-  cloud_name = st.secrets["dxqfnbi1r"], 
-  api_key = st.secrets["643689173528411"], 
-  api_secret = st.secrets["QGAZFBMntdf_LqMemQvhtznU7u8"],
+  cloud_name = st.secrets["CLOUD_NAME"], 
+  api_key = st.secrets["API_KEY"], 
+  api_secret = st.secrets["API_SECRET"],
   secure = True
 )
-URL_FOGLIO = st.secrets["https://docs.google.com/spreadsheets/d/1AF2frhBf9ND5muD7x6QF_2Vmgt40UEqg8FKW7BZwdMM/edit?usp=sharing"]
+URL_FOGLIO = st.secrets["URL_FOGLIO"]
 
 st.set_page_config(page_title="Tool Approvazione", layout="centered")
 
