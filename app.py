@@ -36,17 +36,20 @@ with st.sidebar:
     file = st.file_uploader("Scegli immagine", type=['jpg', 'png', 'jpeg'])
     desc = st.text_area("Scrivi la caption")
     
-    if st.button("Invia al Feed"):
+if st.button("Invia al Feed"):
         if file and desc:
             with st.spinner("Caricamento in corso..."):
                 # 1. Carica su Cloudinary
                 res = cloudinary.uploader.upload(file)
                 img_url = res['secure_url']
                 
-                # 2. Aggiorna il Foglio Google
-                new_row = pd.DataFrame([{"url_foto": img_url, "descrizione": desc, "stato": "In attesa"}])
-                df = pd.concat([df, new_row], ignore_index=True)
-                conn.update(spreadsheet=URL_FOGLIO, data=df)
+                # 2. Crea la nuova riga
+                new_data = {"url_foto": [img_url], "descrizione": [desc], "stato": ["In attesa"]}
+                new_df = pd.DataFrame(new_data)
+                
+                # 3. Aggiorna il foglio (Metodo alternativo più robusto)
+                updated_df = pd.concat([df, new_df], ignore_index=True)
+                conn.update(spreadsheet=URL_FOGLIO, data=updated_df)
                 st.success("Inviato con successo!")
                 st.rerun()
 
