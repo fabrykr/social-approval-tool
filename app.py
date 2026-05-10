@@ -26,14 +26,13 @@ table = api.table(
     st.secrets["AIRTABLE_TABLE_NAME"]
 )
 
-# --- Funzioni di Supporto ---
-def aggiorna_stato(record_id, nuovo_stato):
-    """Aggiorna lo stato del record su Airtable e forza il ricaricamento della UI."""
+def aggiorna_record(record_id, nuovi_dati):
+    """Aggiorna i campi del record su Airtable."""
     try:
-        table.update(record_id, {"stato": nuovo_stato})
+        table.update(record_id, nuovi_dati)
         st.rerun()
     except Exception as e:
-        st.error(f"Si è verificato un errore durante l'aggiornamento: {e}")
+        st.error(f"Errore durante l'aggiornamento: {e}")
 
 # --- Sidebar: Caricamento Post ---
 st.sidebar.header("📝 Inserimento Nuovo Post")
@@ -103,25 +102,42 @@ except Exception as e:
     st.error(f"Errore di connessione: {e}")
     all_records = []
 
-# Funzione interna per disegnare la card del post
 def mostra_card(record, mostra_bottoni=False):
     fields = record.get("fields", {})
     record_id = record.get("id")
     img_url = fields.get("url_foto", "")
     descrizione = fields.get("descrizione", "")
+    note = fields.get("note_revisione", "")
     
     with st.container():
         st.markdown("---")
         if img_url:
             st.image(img_url, use_container_width=True)
-        st.info(descrizione)
+        
+        # Visualizzazione Caption e Note
+        st.info(f"**Caption:**\n\n{descrizione}")
+        if note:
+            st.warning(f"**💡 Accorgimenti:** {note}")
         
         if mostra_bottoni:
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
+            
             if col1.button("✅ Approva", key=f"app_{record_id}", use_container_width=True):
-                aggiorna_stato(record_id, "Approvato")
+                aggiorna_record(record_id, {"stato": "Approvato"})
+            
             if col2.button("❌ Boccia", key=f"boc_{record_id}", use_container_width=True):
-                aggiorna_stato(record_id, "Bocciato")
+                aggiorna_record(record_id, {"stato": "Bocciato"})
+            
+            # NUOVO: Bottone per Modifica e Commenti (usa uno st.expander o st.popover)
+            with col3:
+                with st.popover("📝 Modifica", use_container_width=True):
+                    nuova_desc = st.text_area("Modifica Caption", value=descrizione, key=f"edit_desc_{record_id}")
+                    nuove_note = st.text_area("Aggiungi Accorgimenti", value=note, key=f"edit_note_{record_id}")
+                    if st.button("Salva Modifiche", key=f"save_{record_id}"):
+                        aggiorna_record(record_id, {
+                            "descrizione": nuova_desc,
+                            "note_revisione": nuove_note
+                        })
 
 # --- LOGICA DEI TAB ---
 
