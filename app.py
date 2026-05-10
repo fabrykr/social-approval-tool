@@ -70,7 +70,7 @@ with st.sidebar.form("upload_form", clear_on_submit=True):
                 
                 # --- INVIO NOTIFICA ---
                 # Sostituisci 'link_tua_app_streamlit' con l'URL vero della tua app
-                testo_notifica = f"🚀 *Nuovo Post da Revisionare!*\n\n📝 *Caption:* {caption[:100]}...\n\n🔗 [Apri l'App per approvare](https://tua-app.streamlit.app)"
+                testo_notifica = f"🚀 *Nuovo Post da Revisionare!*\n\n📝 *Caption:* {caption[:100]}...\n\n🔗 [Apri l'App per approvare](https://social-approval-tool-5gyxgx7scpm5iutbzn4zhz.streamlit.app/)"
                 invia_notifica_telegram(testo_notifica)
                 
                 st.success("✅ Post inviato e team notificato su Telegram!")
