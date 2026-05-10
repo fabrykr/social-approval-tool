@@ -110,16 +110,20 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("📢 Notifiche")
 
 if st.sidebar.button("🔔 Avvisa il Cliente", use_container_width=True):
-    # Conta quanti post sono in attesa per dare un'info precisa
     post_in_attesa = [r for r in table.all() if r['fields'].get('stato') == "In attesa"]
     quantita = len(post_in_attesa)
     
     if quantita > 0:
-        testo_notifica = f"ir_bot 🚀 *Nuovi post pronti!*\n\nCiao! Ho caricato *{quantita} nuovi post* nell'app. Quando hai un attimo puoi revisionarli?\n\n🔗 [Apri l'App](https://social-approval-tool-5gyxgx7scpm5iutbzn4zhz.streamlit.app/)"
+        # Messaggio formattato in HTML
+        testo_notifica = (
+            f"🚀 <b>Nuovi post pronti!</b>\n\n"
+            f"Ciao! Ho caricato <b>{quantita} nuovi post</b> nell'app.\n"
+            f"Quando hai un attimo puoi revisionarli?\n\n"
+            f"👉 <a href='https://tua-app.streamlit.app'>Apri l'App qui</a>"
+        )
         invia_notifica_telegram(testo_notifica)
-        st.sidebar.success(f"Notifica inviata per {quantita} post!")
     else:
-        st.sidebar.info("Non ci sono post in attesa di approvazione.")
+        st.sidebar.info("Non ci sono post in attesa.")
 
 # --- Feed Principale con Tab ---
 st.title("📱 Gestione Post")
