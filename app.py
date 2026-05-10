@@ -36,16 +36,21 @@ def aggiorna_record(record_id, nuovi_dati):
         st.error(f"Errore durante l'aggiornamento: {e}")
 
 def invia_notifica_telegram(messaggio):
-    """Invia un messaggio al gruppo Telegram tramite Bot."""
     token = st.secrets["TELEGRAM_BOT_TOKEN"]
     chat_id = st.secrets["TELEGRAM_CHAT_ID"]
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {"chat_id": chat_id, "text": messaggio, "parse_mode": "Markdown"}
+    
     try:
-        requests.post(url, json=payload)
+        response = requests.post(url, json=payload)
+        # --- AGGIUNGI QUESTE RIGHE PER IL DEBUG ---
+        if response.status_code != 200:
+            st.error(f"Errore Telegram: {response.text}")
+        else:
+            st.toast("Notifica inviata con successo!")
+        # ------------------------------------------
     except Exception as e:
-        st.error(f"Errore invio notifica: {e}")
-
+        st.error(f"Errore connessione: {e}")
 # --- Sidebar: Caricamento Post ---
 st.sidebar.header("📝 Inserimento Nuovo Post")
 with st.sidebar.form("upload_form", clear_on_submit=True):
