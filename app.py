@@ -105,7 +105,7 @@ if st.sidebar.button("🔔 Avvisa il Cliente", use_container_width=True):
     quantita = len(post_in_attesa)
     
     if quantita > 0:
-        testo_notifica = f"ir_bot 🚀 *Nuovi post pronti!*\n\nCiao! Ho caricato *{quantita} nuovi post* nell'app. Quando hai un attimo puoi revisionarli?\n\n🔗 [Apri l'App](https://tua-app.streamlit.app)"
+        testo_notifica = f"ir_bot 🚀 *Nuovi post pronti!*\n\nCiao! Ho caricato *{quantita} nuovi post* nell'app. Quando hai un attimo puoi revisionarli?\n\n🔗 [Apri l'App](https://social-approval-tool-5gyxgx7scpm5iutbzn4zhz.streamlit.app/)"
         invia_notifica_telegram(testo_notifica)
         st.sidebar.success(f"Notifica inviata per {quantita} post!")
     else:
