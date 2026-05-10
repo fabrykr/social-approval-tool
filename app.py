@@ -119,7 +119,7 @@ if st.sidebar.button("🔔 Avvisa il Cliente", use_container_width=True):
             f"🚀 <b>Nuovi post pronti!</b>\n\n"
             f"Ciao! Ho caricato <b>{quantita} nuovi post</b> nell'app.\n"
             f"Quando hai un attimo puoi revisionarli?\n\n"
-            f"👉 <a href='https://tua-app.streamlit.app'>Apri l'App qui</a>"
+            f"👉 <a href='https://social-approval-tool-5gyxgx7scpm5iutbzn4zhz.streamlit.app/'>Apri l'App qui</a>"
         )
         invia_notifica_telegram(testo_notifica)
     else:
