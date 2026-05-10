@@ -64,45 +64,62 @@ with st.sidebar.form("upload_form", clear_on_submit=True):
         else:
             st.warning("⚠️ Inserisci sia un'immagine che una caption prima di inviare.")
 
-# --- Feed Principale: Post da Approvare ---
-st.title("📱 Post in attesa di approvazione")
+# --- Feed Principale con Tab ---
+st.title("📱 Gestione Post")
 
+# Creiamo 3 Tab per categorizzare i post
+tab_attesa, tab_approvati, tab_bocciati = st.tabs([
+    "⏳ In attesa", 
+    "✅ Approvati", 
+    "❌ Bocciati"
+])
+
+# Recuperiamo TUTTI i record per popolare i tab
 try:
-    # Fetching solo dei record che necessitano di un'azione
-    records = table.all(formula="{stato}='In attesa'")
+    all_records = table.all()
 except Exception as e:
-    st.error(f"Errore di connessione al database Airtable: {e}")
-    records = []
+    st.error(f"Errore di connessione: {e}")
+    all_records = []
 
-if not records:
-    st.info("Tutto pulito! Nessun post in attesa di approvazione al momento. 🎉")
-else:
-    for record in records:
-        # Estrazione dati Airtable
-        fields = record.get("fields", {})
-        record_id = record.get("id")
+# Funzione interna per disegnare la card del post
+def mostra_card(record, mostra_bottoni=False):
+    fields = record.get("fields", {})
+    record_id = record.get("id")
+    img_url = fields.get("url_foto", "")
+    descrizione = fields.get("descrizione", "")
+    
+    with st.container():
+        st.markdown("---")
+        if img_url:
+            st.image(img_url, use_container_width=True)
+        st.info(descrizione)
         
-        img_url = fields.get("url_foto", "")
-        descrizione = fields.get("descrizione", "")
-        
-        # UI Card per il Post
-        with st.container():
-            st.markdown("---")
-            
-            # Mostra Immagine
-            if img_url:
-                st.image(img_url, use_container_width=True)
-                
-            # Mostra Caption
-            st.markdown(f"**Caption:**")
-            st.info(descrizione)
-            
-            # Bottoni di Azione
+        if mostra_bottoni:
             col1, col2 = st.columns(2)
-            
-            # Utilizziamo delle chiavi dinamiche per non far accavallare i bottoni
-            if col1.button("✅ Approva", key=f"approva_{record_id}", use_container_width=True):
+            if col1.button("✅ Approva", key=f"app_{record_id}", use_container_width=True):
                 aggiorna_stato(record_id, "Approvato")
-                
-            if col2.button("❌ Boccia", key=f"boccia_{record_id}", use_container_width=True):
+            if col2.button("❌ Boccia", key=f"boc_{record_id}", use_container_width=True):
                 aggiorna_stato(record_id, "Bocciato")
+
+# --- LOGICA DEI TAB ---
+
+with tab_attesa:
+    attesa = [r for r in all_records if r['fields'].get('stato') == "In attesa"]
+    if not attesa:
+        st.write("Nessun post da revisionare.")
+    for r in attesa:
+        mostra_card(r, mostra_bottoni=True)
+
+with tab_approvati:
+    approvati = [r for r in all_records if r['fields'].get('stato') == "Approvato"]
+    if not approvati:
+        st.write("Ancora nessun post approvato.")
+    for r in approvati:
+        mostra_card(r, mostra_bottoni=False)
+
+with tab_bocciati:
+    bocciati = [r for r in all_records if r['fields'].get('stato') == "Bocciato"]
+    if not bocciati:
+        st.write("Nessun post bocciato.")
+    for r in bocciati:
+        mostra_card(r, mostra_bottoni=False)
