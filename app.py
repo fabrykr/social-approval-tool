@@ -38,19 +38,24 @@ def aggiorna_record(record_id, nuovi_dati):
 def invia_notifica_telegram(messaggio):
     token = st.secrets["TELEGRAM_BOT_TOKEN"]
     chat_id = st.secrets["TELEGRAM_CHAT_ID"]
+    # Usiamo HTML invece di Markdown per evitare errori con caratteri speciali
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": messaggio, "parse_mode": "Markdown"}
+    payload = {
+        "chat_id": chat_id, 
+        "text": messaggio, 
+        "parse_mode": "HTML"
+    }
     
     try:
         response = requests.post(url, json=payload)
-        # --- AGGIUNGI QUESTE RIGHE PER IL DEBUG ---
         if response.status_code != 200:
             st.error(f"Errore Telegram: {response.text}")
         else:
-            st.toast("Notifica inviata con successo!")
-        # ------------------------------------------
+            st.sidebar.success("Notifica inviata!")
     except Exception as e:
         st.error(f"Errore connessione: {e}")
+
+
 # --- Sidebar: Caricamento Post ---
 st.sidebar.header("📝 Inserimento Nuovo Post")
 with st.sidebar.form("upload_form", clear_on_submit=True):
