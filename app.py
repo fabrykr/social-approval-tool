@@ -56,29 +56,21 @@ with st.sidebar.form("upload_form", clear_on_submit=True):
     if submit_button:
         if uploaded_file is not None and caption.strip() != "":
             try:
-                with st.spinner("Caricamento immagine su Cloudinary in corso..."):
+                with st.spinner("Caricamento immagine..."):
                     upload_result = cloudinary.uploader.upload(uploaded_file)
                     img_url = upload_result.get("secure_url")
 
-                with st.spinner("Registrazione post sul database..."):
-                    # Scrittura su Airtable (UNA SOLA VOLTA)
+                with st.spinner("Salvataggio..."):
                     table.create({
                         "url_foto": img_url,
                         "descrizione": caption,
                         "stato": "In attesa"
                     })
                 
-                # --- INVIO NOTIFICA ---
-                # Sostituisci 'link_tua_app_streamlit' con l'URL vero della tua app
-                testo_notifica = f"🚀 *Nuovo Post da Revisionare!*\n\n📝 *Caption:* {caption[:100]}...\n\n🔗 [Apri l'App per approvare](https://social-approval-tool-5gyxgx7scpm5iutbzn4zhz.streamlit.app/)"
-                invia_notifica_telegram(testo_notifica)
-                
-                st.success("✅ Post inviato e team notificato su Telegram!")
+                st.success("✅ Post caricato correttamente!") # Niente notifica qui
                 
             except Exception as e:
-                st.error(f"Errore durante il caricamento o salvataggio: {e}")
-        else:
-            st.warning("⚠️ Inserisci sia un'immagine che una caption prima di inviare.")
+                st.error(f"Errore: {e}")
 
 
 # --- Bottone per Svuotare l'Archivio ---
@@ -102,6 +94,22 @@ if st.sidebar.button("🗑️ Svuota Approvati e Bocciati"):
             st.sidebar.info("L'archivio è già vuoto.")
     except Exception as e:
         st.sidebar.error(f"Errore durante la pulizia: {e}")
+
+# --- Bottone per Notifica Manuale ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("📢 Notifiche")
+
+if st.sidebar.button("🔔 Avvisa il Cliente", use_container_width=True):
+    # Conta quanti post sono in attesa per dare un'info precisa
+    post_in_attesa = [r for r in table.all() if r['fields'].get('stato') == "In attesa"]
+    quantita = len(post_in_attesa)
+    
+    if quantita > 0:
+        testo_notifica = f"ir_bot 🚀 *Nuovi post pronti!*\n\nCiao! Ho caricato *{quantita} nuovi post* nell'app. Quando hai un attimo puoi revisionarli?\n\n🔗 [Apri l'App](https://tua-app.streamlit.app)"
+        invia_notifica_telegram(testo_notifica)
+        st.sidebar.success(f"Notifica inviata per {quantita} post!")
+    else:
+        st.sidebar.info("Non ci sono post in attesa di approvazione.")
 
 # --- Feed Principale con Tab ---
 st.title("📱 Gestione Post")
