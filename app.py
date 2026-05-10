@@ -1,77 +1,108 @@
 import streamlit as st
 import cloudinary
 import cloudinary.uploader
-from streamlit_gsheets import GSheetsConnection
-import pandas as pd
+from pyairtable import Api
 
-# --- CONFIGURAZIONE SICURA ---
-# Usiamo i NOMI delle etichette, non i valori!
-cloudinary.config( 
-  cloud_name = st.secrets["CLOUD_NAME"], 
-  api_key = st.secrets["API_KEY"], 
-  api_secret = st.secrets["API_SECRET"],
-  secure = True
+# --- Configurazione Pagina ---
+st.set_page_config(
+    page_title="Approvazione Post Social", 
+    page_icon="📱", 
+    layout="centered"
 )
-URL_FOGLIO = st.secrets["URL_FOGLIO"]
 
-st.set_page_config(page_title="Tool Approvazione", layout="centered")
+# --- Inizializzazione Servizi tramite st.secrets ---
+# 1. Cloudinary
+cloudinary.config(
+    cloud_name=st.secrets["CLOUDINARY_CLOUD_NAME"],
+    api_key=st.secrets["CLOUDINARY_API_KEY"],
+    api_secret=st.secrets["CLOUDINARY_API_SECRET"],
+    secure=True
+)
 
-# --- CONNESSIONE AL DATABASE ---
-conn = st.connection("gsheets", type=GSheetsConnection)
+# 2. Airtable
+api = Api(st.secrets["AIRTABLE_API_KEY"])
+table = api.table(
+    st.secrets["AIRTABLE_BASE_ID"], 
+    st.secrets["AIRTABLE_TABLE_NAME"]
+)
 
-# Funzione per caricare i dati dal foglio
-def load_data():
-    return conn.read(spreadsheet=URL_FOGLIO, usecols=[0,1,2])
+# --- Funzioni di Supporto ---
+def aggiorna_stato(record_id, nuovo_stato):
+    """Aggiorna lo stato del record su Airtable e forza il ricaricamento della UI."""
+    try:
+        table.update(record_id, {"stato": nuovo_stato})
+        st.rerun()
+    except Exception as e:
+        st.error(f"Si è verificato un errore durante l'aggiornamento: {e}")
 
-# Proviamo a caricare i dati esistenti
+# --- Sidebar: Caricamento Post ---
+st.sidebar.header("📝 Inserimento Nuovo Post")
+with st.sidebar.form("upload_form", clear_on_submit=True):
+    uploaded_file = st.file_uploader("Carica l'immagine del post", type=["png", "jpg", "jpeg"])
+    caption = st.text_area("Inserisci la caption")
+    submit_button = st.form_submit_button("Invia per l'approvazione")
+
+    if submit_button:
+        if uploaded_file is not None and caption.strip() != "":
+            try:
+                with st.spinner("Caricamento immagine su Cloudinary in corso..."):
+                    # Caricamento immagine (Cloudinary accetta file-like objects nativamente)
+                    upload_result = cloudinary.uploader.upload(uploaded_file)
+                    img_url = upload_result.get("secure_url")
+
+                with st.spinner("Registrazione post sul database..."):
+                    # Scrittura su Airtable
+                    table.create({
+                        "url_foto": img_url,
+                        "descrizione": caption,
+                        "stato": "In attesa"
+                    })
+                
+                st.success("✅ Post inviato con successo!")
+            except Exception as e:
+                st.error(f"Errore durante il caricamento o salvataggio: {e}")
+        else:
+            st.warning("⚠️ Inserisci sia un'immagine che una caption prima di inviare.")
+
+# --- Feed Principale: Post da Approvare ---
+st.title("📱 Post in attesa di approvazione")
+
 try:
-    df = load_data()
-except:
-    # Se il foglio è vuoto, creiamo una tabella base
-    df = pd.DataFrame(columns=["url_foto", "descrizione", "stato"])
+    # Fetching solo dei record che necessitano di un'azione
+    records = table.all(formula="{stato}='In attesa'")
+except Exception as e:
+    st.error(f"Errore di connessione al database Airtable: {e}")
+    records = []
 
-# --- SIDEBAR PER CARICARE ---
-with st.sidebar:
-    st.header("Nuovo Post")
-    file = st.file_uploader("Scegli immagine", type=['jpg', 'png', 'jpeg'])
-    desc = st.text_area("Scrivi la caption")
-    
-if st.button("Invia al Feed"):
-        if file and desc:
-            with st.spinner("Caricamento in corso..."):
-                # 1. Carica su Cloudinary
-                res = cloudinary.uploader.upload(file)
-                img_url = res['secure_url']
-                
-                # 2. Crea la nuova riga
-                new_data = {"url_foto": [img_url], "descrizione": [desc], "stato": ["In attesa"]}
-                new_df = pd.DataFrame(new_data)
-                
-                # 3. Aggiorna il foglio (Metodo alternativo più robusto)
-                updated_df = pd.concat([df, new_df], ignore_index=True)
-                conn.update(spreadsheet=URL_FOGLIO, data=updated_df)
-                st.success("Inviato con successo!")
-                st.rerun()
-
-# --- FEED PRINCIPALE ---
-st.title("Feed Revisione Instagram")
-
-if df.empty:
-    st.write("Non ci sono ancora post da revisionare.")
+if not records:
+    st.info("Tutto pulito! Nessun post in attesa di approvazione al momento. 🎉")
 else:
-    # Mostriamo i post dal più recente al più vecchio
-    for index, row in df.iloc[::-1].iterrows():
-        with st.container(border=True):
-            st.image(row['url_foto'], use_container_width=True)
-            st.markdown(f"**Caption:** {row['descrizione']}")
-            st.info(f"Stato: {row['stato']}")
+    for record in records:
+        # Estrazione dati Airtable
+        fields = record.get("fields", {})
+        record_id = record.get("id")
+        
+        img_url = fields.get("url_foto", "")
+        descrizione = fields.get("descrizione", "")
+        
+        # UI Card per il Post
+        with st.container():
+            st.markdown("---")
             
-            c1, c2 = st.columns(2)
-            if c1.button("✅ Approva", key=f"ok_{index}"):
-                df.at[index, 'stato'] = "APPROVATO"
-                conn.update(spreadsheet=URL_FOGLIO, data=df)
-                st.rerun()
-            if c2.button("❌ Boccia", key=f"no_{index}"):
-                df.at[index, 'stato'] = "BOCCIATO"
-                conn.update(spreadsheet=URL_FOGLIO, data=df)
-                st.rerun()
+            # Mostra Immagine
+            if img_url:
+                st.image(img_url, use_container_width=True)
+                
+            # Mostra Caption
+            st.markdown(f"**Caption:**")
+            st.info(descrizione)
+            
+            # Bottoni di Azione
+            col1, col2 = st.columns(2)
+            
+            # Utilizziamo delle chiavi dinamiche per non far accavallare i bottoni
+            if col1.button("✅ Approva", key=f"approva_{record_id}", use_container_width=True):
+                aggiorna_stato(record_id, "Approvato")
+                
+            if col2.button("❌ Boccia", key=f"boccia_{record_id}", use_container_width=True):
+                aggiorna_stato(record_id, "Bocciato")
