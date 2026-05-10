@@ -64,6 +64,28 @@ with st.sidebar.form("upload_form", clear_on_submit=True):
         else:
             st.warning("⚠️ Inserisci sia un'immagine che una caption prima di inviare.")
 
+# --- Bottone per Svuotare l'Archivio ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("⚙️ Manutenzione")
+
+if st.sidebar.button("🗑️ Svuota Approvati e Bocciati"):
+    try:
+        # Recupera tutti i record che NON sono "In attesa"
+        records_da_eliminare = [
+            r["id"] for r in table.all() 
+            if r["fields"].get("stato") in ["Approvato", "Bocciato"]
+        ]
+        
+        if records_da_eliminare:
+            with st.spinner(f"Eliminazione di {len(records_da_eliminare)} post..."):
+                table.batch_delete(records_da_eliminare)
+            st.sidebar.success("Archivio svuotato!")
+            st.rerun()
+        else:
+            st.sidebar.info("L'archivio è già vuoto.")
+    except Exception as e:
+        st.sidebar.error(f"Errore durante la pulizia: {e}")
+
 # --- Feed Principale con Tab ---
 st.title("📱 Gestione Post")
 
