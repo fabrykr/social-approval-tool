@@ -1,3 +1,4 @@
+import requests
 import streamlit as st
 import cloudinary
 import cloudinary.uploader
@@ -34,6 +35,17 @@ def aggiorna_record(record_id, nuovi_dati):
     except Exception as e:
         st.error(f"Errore durante l'aggiornamento: {e}")
 
+def invia_notifica_telegram(messaggio):
+    """Invia un messaggio al gruppo Telegram tramite Bot."""
+    token = st.secrets["TELEGRAM_BOT_TOKEN"]
+    chat_id = st.secrets["TELEGRAM_CHAT_ID"]
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": messaggio, "parse_mode": "Markdown"}
+    try:
+        requests.post(url, json=payload)
+    except Exception as e:
+        st.error(f"Errore invio notifica: {e}")
+
 # --- Sidebar: Caricamento Post ---
 st.sidebar.header("📝 Inserimento Nuovo Post")
 with st.sidebar.form("upload_form", clear_on_submit=True):
@@ -45,23 +57,29 @@ with st.sidebar.form("upload_form", clear_on_submit=True):
         if uploaded_file is not None and caption.strip() != "":
             try:
                 with st.spinner("Caricamento immagine su Cloudinary in corso..."):
-                    # Caricamento immagine (Cloudinary accetta file-like objects nativamente)
                     upload_result = cloudinary.uploader.upload(uploaded_file)
                     img_url = upload_result.get("secure_url")
 
                 with st.spinner("Registrazione post sul database..."):
-                    # Scrittura su Airtable
+                    # Scrittura su Airtable (UNA SOLA VOLTA)
                     table.create({
                         "url_foto": img_url,
                         "descrizione": caption,
                         "stato": "In attesa"
                     })
                 
-                st.success("✅ Post inviato con successo!")
+                # --- INVIO NOTIFICA ---
+                # Sostituisci 'link_tua_app_streamlit' con l'URL vero della tua app
+                testo_notifica = f"🚀 *Nuovo Post da Revisionare!*\n\n📝 *Caption:* {caption[:100]}...\n\n🔗 [Apri l'App per approvare](https://tua-app.streamlit.app)"
+                invia_notifica_telegram(testo_notifica)
+                
+                st.success("✅ Post inviato e team notificato su Telegram!")
+                
             except Exception as e:
                 st.error(f"Errore durante il caricamento o salvataggio: {e}")
         else:
             st.warning("⚠️ Inserisci sia un'immagine che una caption prima di inviare.")
+
 
 # --- Bottone per Svuotare l'Archivio ---
 st.sidebar.markdown("---")
