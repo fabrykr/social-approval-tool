@@ -2,6 +2,8 @@ import requests
 import streamlit as st
 import cloudinary
 import cloudinary.uploader
+import pandas as pd
+from io import BytesIO
 from pyairtable import Api
 
 # --- Configurazione Pagina ---
@@ -27,6 +29,8 @@ table = api.table(
     st.secrets["AIRTABLE_TABLE_NAME"]
 )
 
+# --- Funzioni di Servizio ---
+
 def aggiorna_record(record_id, nuovi_dati):
     """Aggiorna i campi del record su Airtable."""
     try:
@@ -36,168 +40,158 @@ def aggiorna_record(record_id, nuovi_dati):
         st.error(f"Errore durante l'aggiornamento: {e}")
 
 def invia_notifica_telegram(messaggio):
+    """Invia notifica HTML a Telegram."""
     token = st.secrets["TELEGRAM_BOT_TOKEN"]
     chat_id = st.secrets["TELEGRAM_CHAT_ID"]
-    # Usiamo HTML invece di Markdown per evitare errori con caratteri speciali
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id, 
         "text": messaggio, 
         "parse_mode": "HTML"
     }
-    
     try:
         response = requests.post(url, json=payload)
         if response.status_code != 200:
             st.error(f"Errore Telegram: {response.text}")
         else:
-            st.sidebar.success("Notifica inviata!")
+            st.sidebar.success("Notifica inviata con successo!")
     except Exception as e:
-        st.error(f"Errore connessione: {e}")
-
-
-# --- Sidebar: Caricamento Post ---
-st.sidebar.header("📝 Inserimento Nuovo Post")
-with st.sidebar.form("upload_form", clear_on_submit=True):
-    uploaded_file = st.file_uploader("Carica l'immagine del post", type=["png", "jpg", "jpeg"])
-    caption = st.text_area("Inserisci la caption")
-    submit_button = st.form_submit_button("Invia per l'approvazione")
-
-    if submit_button:
-        if uploaded_file is not None and caption.strip() != "":
-            try:
-                with st.spinner("Caricamento immagine..."):
-                    upload_result = cloudinary.uploader.upload(uploaded_file)
-                    img_url = upload_result.get("secure_url")
-
-                with st.spinner("Salvataggio..."):
-                    table.create({
-                        "url_foto": img_url,
-                        "descrizione": caption,
-                        "stato": "In attesa"
-                    })
-                
-                st.success("✅ Post caricato correttamente!") # Niente notifica qui
-                
-            except Exception as e:
-                st.error(f"Errore: {e}")
-
-
-# --- Bottone per Svuotare l'Archivio ---
-st.sidebar.markdown("---")
-st.sidebar.subheader("⚙️ Manutenzione")
-
-if st.sidebar.button("🗑️ Svuota Approvati e Bocciati"):
-    try:
-        # Recupera tutti i record che NON sono "In attesa"
-        records_da_eliminare = [
-            r["id"] for r in table.all() 
-            if r["fields"].get("stato") in ["Approvato", "Bocciato"]
-        ]
-        
-        if records_da_eliminare:
-            with st.spinner(f"Eliminazione di {len(records_da_eliminare)} post..."):
-                table.batch_delete(records_da_eliminare)
-            st.sidebar.success("Archivio svuotato!")
-            st.rerun()
-        else:
-            st.sidebar.info("L'archivio è già vuoto.")
-    except Exception as e:
-        st.sidebar.error(f"Errore durante la pulizia: {e}")
-
-# --- Bottone per Notifica Manuale ---
-st.sidebar.markdown("---")
-st.sidebar.subheader("📢 Notifiche")
-
-if st.sidebar.button("🔔 Avvisa il Cliente", use_container_width=True):
-    post_in_attesa = [r for r in table.all() if r['fields'].get('stato') == "In attesa"]
-    quantita = len(post_in_attesa)
-    
-    if quantita > 0:
-        # Messaggio formattato in HTML
-        testo_notifica = (
-            f"🚀 <b>Nuovi post pronti!</b>\n\n"
-            f"Ciao! Ho caricato <b>{quantita} nuovi post</b> nell'app.\n"
-            f"Quando hai un attimo puoi revisionarli?\n\n"
-            f"👉 <a href='https://social-approval-tool-5gyxgx7scpm5iutbzn4zhz.streamlit.app/'>Apri l'App qui</a>"
-        )
-        invia_notifica_telegram(testo_notifica)
-    else:
-        st.sidebar.info("Non ci sono post in attesa.")
-
-# --- Feed Principale con Tab ---
-st.title("📱 Gestione Post")
-
-# Creiamo 3 Tab per categorizzare i post
-tab_attesa, tab_approvati, tab_bocciati = st.tabs([
-    "⏳ In attesa", 
-    "✅ Approvati", 
-    "❌ Bocciati"
-])
-
-# Recuperiamo TUTTI i record per popolare i tab
-try:
-    all_records = table.all()
-except Exception as e:
-    st.error(f"Errore di connessione: {e}")
-    all_records = []
+        st.error(f"Errore connessione Telegram: {e}")
 
 def mostra_card(record, mostra_bottoni=False):
+    """Disegna la card del post (supporta caroselli)."""
     fields = record.get("fields", {})
     record_id = record.get("id")
-    img_url = fields.get("url_foto", "")
+    
+    # Gestione Carosello: trasforma stringa URL in lista
+    url_string = fields.get("url_foto", "")
+    img_urls = url_string.split(",") if url_string else []
+    
     descrizione = fields.get("descrizione", "")
     note = fields.get("note_revisione", "")
     
     with st.container():
         st.markdown("---")
-        if img_url:
-            st.image(img_url, use_container_width=True)
+        if img_urls:
+            if len(img_urls) > 1:
+                st.write(f"📸 **Carosello ({len(img_urls)} immagini)**")
+                for url in img_urls:
+                    st.image(url, use_container_width=True)
+            else:
+                st.image(img_urls[0], use_container_width=True)
         
-        # Visualizzazione Caption e Note
         st.info(f"**Caption:**\n\n{descrizione}")
         if note:
             st.warning(f"**💡 Accorgimenti:** {note}")
         
         if mostra_bottoni:
             col1, col2, col3 = st.columns(3)
-            
             if col1.button("✅ Approva", key=f"app_{record_id}", use_container_width=True):
                 aggiorna_record(record_id, {"stato": "Approvato"})
-            
             if col2.button("❌ Boccia", key=f"boc_{record_id}", use_container_width=True):
                 aggiorna_record(record_id, {"stato": "Bocciato"})
-            
-            # NUOVO: Bottone per Modifica e Commenti (usa uno st.expander o st.popover)
             with col3:
                 with st.popover("📝 Modifica", use_container_width=True):
-                    nuova_desc = st.text_area("Modifica Caption", value=descrizione, key=f"edit_desc_{record_id}")
-                    nuove_note = st.text_area("Aggiungi Accorgimenti", value=note, key=f"edit_note_{record_id}")
-                    if st.button("Salva Modifiche", key=f"save_{record_id}"):
-                        aggiorna_record(record_id, {
-                            "descrizione": nuova_desc,
-                            "note_revisione": nuove_note
-                        })
+                    nuova_desc = st.text_area("Modifica Caption", value=descrizione, key=f"ed_cap_{record_id}")
+                    nuove_note = st.text_area("Accorgimenti", value=note, key=f"ed_not_{record_id}")
+                    if st.button("Salva", key=f"save_{record_id}"):
+                        aggiorna_record(record_id, {"descrizione": nuova_desc, "note_revisione": nuove_note})
 
-# --- LOGICA DEI TAB ---
+# --- Sidebar: Inserimento ---
+st.sidebar.header("📝 Nuovo Post")
+with st.sidebar.form("upload_form", clear_on_submit=True):
+    uploaded_files = st.file_uploader("Foto (singola o carosello)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+    caption = st.text_area("Caption")
+    submit_button = st.form_submit_button("Carica in coda")
+
+    if submit_button:
+        if uploaded_files and caption.strip():
+            try:
+                urls = []
+                with st.spinner(f"Caricamento {len(uploaded_files)} immagini..."):
+                    for file in uploaded_files:
+                        res = cloudinary.uploader.upload(file)
+                        urls.append(res.get("secure_url"))
+                
+                table.create({
+                    "url_foto": ",".join(urls),
+                    "descrizione": caption,
+                    "stato": "In attesa"
+                })
+                st.success("✅ Post caricato in coda!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Errore: {e}")
+        else:
+            st.warning("⚠️ Carica i file e scrivi la caption.")
+
+# --- Sidebar: Report & Notifiche ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("📊 Report & Notifiche")
+
+# Notifica Telegram
+if st.sidebar.button("🔔 Avvisa il Cliente", use_container_width=True):
+    attesa = [r for r in table.all() if r['fields'].get('stato') == "In attesa"]
+    if attesa:
+        testo = (
+            f"🚀 <b>Nuovi post pronti!</b>\n\n"
+            f"Ciao! Ho caricato <b>{len(attesa)} nuovi post</b>.\n"
+            f"👉 <a href='https://social-approval-tool-5gyxgx7scpm5iutbzn4zhz.streamlit.app/'>Apri l'App</a>"
+        )
+        invia_notifica_telegram(testo)
+    else:
+        st.sidebar.info("Nessun post in attesa.")
+
+# Download Report Approvati
+approvati_records = [r for r in table.all() if r['fields'].get('stato') == "Approvato"]
+if approvati_records:
+    data_report = [{
+        "Data": r['fields'].get("data_creazione", "N/A"),
+        "Caption": r['fields'].get("descrizione", ""),
+        "Note": r['fields'].get("note_revisione", ""),
+        "Tipo": "Carosello" if "," in str(r['fields'].get("url_foto", "")) else "Singolo"
+    } for r in approvati_records]
+    
+    df = pd.DataFrame(data_report)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False)
+    
+    st.sidebar.download_button(
+        "📥 Scarica Report Approvati",
+        data=output.getvalue(),
+        file_name="report_approvati.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
+
+# Svuota Archivio
+st.sidebar.markdown("---")
+if st.sidebar.button("🗑️ Svuota Approvati/Bocciati"):
+    to_del = [r["id"] for r in table.all() if r["fields"].get("stato") in ["Approvato", "Bocciato"]]
+    if to_del:
+        with st.spinner("Pulizia..."):
+            table.batch_delete(to_del)
+        st.sidebar.success("Archivio svuotato!")
+        st.rerun()
+
+# --- Feed Principale ---
+st.title("📱 Gestione Post")
+tab_attesa, tab_approvati, tab_bocciati = st.tabs(["⏳ In attesa", "✅ Approvati", "❌ Bocciati"])
+
+all_records = table.all()
 
 with tab_attesa:
     attesa = [r for r in all_records if r['fields'].get('stato') == "In attesa"]
-    if not attesa:
-        st.write("Nessun post da revisionare.")
-    for r in attesa:
-        mostra_card(r, mostra_bottoni=True)
+    if not attesa: st.write("Tutto pulito! Nessun post in attesa.")
+    for r in attesa: mostra_card(r, mostra_bottoni=True)
 
 with tab_approvati:
     approvati = [r for r in all_records if r['fields'].get('stato') == "Approvato"]
-    if not approvati:
-        st.write("Ancora nessun post approvato.")
-    for r in approvati:
-        mostra_card(r, mostra_bottoni=False)
+    if not approvati: st.write("Nessun post approvato.")
+    for r in approvati: mostra_card(r, mostra_bottoni=False)
 
 with tab_bocciati:
     bocciati = [r for r in all_records if r['fields'].get('stato') == "Bocciato"]
-    if not bocciati:
-        st.write("Nessun post bocciato.")
-    for r in bocciati:
-        mostra_card(r, mostra_bottoni=False)
+    if not bocciati: st.write("Nessun post bocciato.")
+    for r in bocciati: mostra_card(r, mostra_bottoni=False)
